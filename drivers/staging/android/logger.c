@@ -75,9 +75,9 @@ struct logger_reader {
 static void update_log_from_bottom_locked(struct logger_log *log_dst);
 
 /* logger_offset - returns index 'n' into the log via (optimized) modulus */
-size_t logger_offset(struct logger_log *log, size_t n)
+static size_t logger_offset(struct logger_log *log, size_t n)
 {
-	return n & (log->size-1);
+	return n & (log->size - 1);
 }
 
 
@@ -458,11 +458,11 @@ static ssize_t do_write_log_from_user(struct logger_log *log,
  * writev(), and aio_write(). Writes are our fast path, and we try to optimize
  * them above all else.
  */
-ssize_t logger_aio_write(struct kiocb *iocb, const struct iovec *iov,
+static ssize_t logger_aio_write(struct kiocb *iocb, const struct iovec *iov,
 			 unsigned long nr_segs, loff_t ppos)
 {
 	struct logger_log *log = file_get_log(iocb->ki_filp);
-	size_t orig = log->w_off;
+	size_t orig;
 	struct logger_entry header;
 	struct timespec now;
 	ssize_t ret = 0;
@@ -482,6 +482,8 @@ ssize_t logger_aio_write(struct kiocb *iocb, const struct iovec *iov,
 		return 0;
 
 	mutex_lock(&log->mutex);
+
+	orig = log->w_off;
 
 	/*
 	 * Fix up any readers, pulling them forward to the first readable
@@ -679,6 +681,11 @@ static long logger_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case LOGGER_FLUSH_LOG:
 		if (!(file->f_mode & FMODE_WRITE)) {
 			ret = -EBADF;
+			break;
+		}
+		if (!(in_egroup_p(file->f_dentry->d_inode->i_gid) ||
+				capable(CAP_SYSLOG))) {
+			ret = -EPERM;
 			break;
 		}
 		list_for_each_entry(reader, &log->readers, list)

@@ -388,7 +388,7 @@ binder_defer_work(struct binder_proc *proc, enum binder_deferred_state defer);
 /*
  * copied from get_unused_fd_flags
  */
-int task_get_unused_fd_flags(struct binder_proc *proc, int flags)
+static int task_get_unused_fd_flags(struct binder_proc *proc, int flags)
 {
 	struct files_struct *files = proc->files;
 	int fd, error;
@@ -438,13 +438,13 @@ repeat:
 	else
 		__clear_close_on_exec(fd, fdt);
 	files->next_fd = fd + 1;
-#if 1
+
 	/* Sanity check */
 	if (fdt->fd[fd] != NULL) {
 		printk(KERN_WARNING "get_unused_fd: slot %d not NULL!\n", fd);
 		fdt->fd[fd] = NULL;
 	}
-#endif
+
 	error = fd;
 
 out:
@@ -1949,7 +1949,7 @@ int binder_thread_write(struct binder_proc *proc, struct binder_thread *thread,
 		case BC_INCREFS_DONE:
 		case BC_ACQUIRE_DONE: {
 			void __user *node_ptr;
-			void *cookie;
+			void __user *cookie;
 			struct binder_node *node;
 
 			if (get_user(node_ptr, (void * __user *)ptr))
@@ -2318,6 +2318,7 @@ retry:
 			if (put_user(thread->return_error2, (uint32_t __user *)ptr))
 				return -EFAULT;
 			ptr += sizeof(uint32_t);
+			binder_stat_br(proc, thread, thread->return_error2);
 			if (ptr == end)
 				goto done;
 			thread->return_error2 = BR_OK;
@@ -2325,6 +2326,7 @@ retry:
 		if (put_user(thread->return_error, (uint32_t __user *)ptr))
 			return -EFAULT;
 		ptr += sizeof(uint32_t);
+		binder_stat_br(proc, thread, thread->return_error);
 		thread->return_error = BR_OK;
 		goto done;
 	}
@@ -2480,6 +2482,7 @@ retry:
 			if (put_user(death->cookie, (void * __user *)ptr))
 				return -EFAULT;
 			ptr += sizeof(void *);
+			binder_stat_br(proc, thread, cmd);
 			binder_debug(BINDER_DEBUG_DEATH_NOTIFICATION,
 				     "binder: %d:%d %s %p\n",
 				      proc->pid, thread->pid,
@@ -2587,6 +2590,7 @@ done:
 			     proc->pid, thread->pid);
 		if (put_user(BR_SPAWN_LOOPER, (uint32_t __user *)buffer))
 			return -EFAULT;
+		binder_stat_br(proc, thread, BR_SPAWN_LOOPER);
 	}
 	return 0;
 }
@@ -2971,6 +2975,9 @@ static int binder_mmap(struct file *filp, struct vm_area_struct *vma)
 	const char *failure_string;
 	struct binder_buffer *buffer;
 
+	if (proc->tsk != current)
+		return -EINVAL;
+
 	if ((vma->vm_end - vma->vm_start) > SZ_4M)
 		vma->vm_end = vma->vm_start + SZ_4M;
 
@@ -3036,7 +3043,7 @@ static int binder_mmap(struct file *filp, struct vm_area_struct *vma)
 	binder_insert_free_buffer(proc, buffer);
 	proc->free_async_space = proc->buffer_size / 2;
 	barrier();
-	proc->files = get_files_struct(proc->tsk);
+	proc->files = get_files_struct(current);
 	proc->vma = vma;
 	proc->vma_vm_mm = vma->vm_mm;
 
@@ -3488,7 +3495,7 @@ static void print_binder_proc(struct seq_file *m,
 		m->count = start_pos;
 }
 
-static const char *binder_return_strings[] = {
+static const char * const binder_return_strings[] = {
 	"BR_ERROR",
 	"BR_OK",
 	"BR_TRANSACTION",
@@ -3509,7 +3516,7 @@ static const char *binder_return_strings[] = {
 	"BR_FAILED_REPLY"
 };
 
-static const char *binder_command_strings[] = {
+static const char * const binder_command_strings[] = {
 	"BC_TRANSACTION",
 	"BC_REPLY",
 	"BC_ACQUIRE_RESULT",
@@ -3529,7 +3536,7 @@ static const char *binder_command_strings[] = {
 	"BC_DEAD_BINDER_DONE"
 };
 
-static const char *binder_objstat_strings[] = {
+static const char * const binder_objstat_strings[] = {
 	"proc",
 	"thread",
 	"node",
