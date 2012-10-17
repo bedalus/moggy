@@ -386,13 +386,16 @@ int ion_handle_put(struct ion_handle *handle)
 static struct ion_handle *ion_handle_lookup(struct ion_client *client,
 					    struct ion_buffer *buffer)
 {
-	struct rb_node *n;
+	struct rb_node *n = client->handles.rb_node;
 
-	for (n = rb_first(&client->handles); n; n = rb_next(n)) {
-		struct ion_handle *handle = rb_entry(n, struct ion_handle,
-						   node);
-		if (handle->buffer == buffer)
-			return handle;
+	while (n) {
+		struct ion_handle *entry = rb_entry(n, struct ion_handle, node);
+		if (buffer < entry->buffer)
+			n = n->rb_left;
+		else if (buffer > entry->buffer)
+			n = n->rb_right;
+		else
+			return entry;
 	}
 	return NULL;
 }
@@ -440,9 +443,9 @@ static int ion_handle_add(struct ion_client *client, struct ion_handle *handle)
 		parent = *p;
 		entry = rb_entry(parent, struct ion_handle, node);
 
-		if (handle < entry)
+		if (handle->buffer < entry->buffer)
 			p = &(*p)->rb_left;
-		else if (handle > entry)
+		else if (handle->buffer > entry->buffer)
 			p = &(*p)->rb_right;
 		else
 			WARN(1, "%s: buffer already found.", __func__);
@@ -1648,6 +1651,9 @@ static int ion_debug_heap_show(struct seq_file *s, void *unused)
 	seq_printf(s, "%16.s %16u\n", "total orphaned",
 		   total_orphaned_size);
 	seq_printf(s, "%16.s %16u\n", "total ", total_size);
+	if (heap->flags & ION_HEAP_FLAG_DEFER_FREE)
+		seq_printf(s, "%16.s %16u\n", "deferred free",
+				heap->free_list_size);
 	seq_printf(s, "----------------------------------------------------\n");
 
 	if (heap->debug_show)
