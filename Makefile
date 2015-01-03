@@ -358,7 +358,7 @@ CHECKFLAGS     := -D__linux__ -Dlinux -D__STDC__ -Dunix -D__unix__ \
 		  -Wbitwise -Wno-return-void $(CF)
 CFLAGS_MODULE   = -DMODULE -fno-pic -mtune=cortex-a7 -marm -ffast-math -mfpu=neon-vfpv4 -mvectorize-with-neon-quad
 AFLAGS_MODULE   =
-LDFLAGS_MODULE  =
+LDFLAGS_MODULE  = --strip-debug
 CFLAGS_KERNEL   = -mtune=cortex-a7 -marm -ffast-math -mfpu=neon-vfpv4 -mvectorize-with-neon-quad
 AFLAGS_KERNEL   = -mtune=cortex-a7 -marm -ffast-math -mfpu=neon-vfpv4 -mvectorize-with-neon-quad
 CFLAGS_GCOV     = -fprofile-arcs -ftest-coverage
