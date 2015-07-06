@@ -10,6 +10,7 @@ make -j7
 
 # modules
 find ./ -type f -name '*.ko' -exec cp -f {} ../zip/system/lib/modules/ \;
+mv ../zip/system/lib/modules/wlan.ko ../zip/system/lib/modules/pronto/pronto_wlan.ko
 
 # copy zImage
 cp -f arch/arm/boot/zImage-dtb ../zip/kernel/
