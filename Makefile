@@ -356,12 +356,12 @@ CC		= $(srctree)/scripts/gcc-wrapper.py $(REAL_CC)
 
 CHECKFLAGS     := -D__linux__ -Dlinux -D__STDC__ -Dunix -D__unix__ \
 		  -Wbitwise -Wno-return-void $(CF)
-CFLAGS_MODULE   = -DMODULE -fno-pic -mtune=cortex-a7 -marm -ffast-math -mfpu=neon-vfpv4 -mvectorize-with-neon-quad
+CFLAGS_MODULE   =
 AFLAGS_MODULE   =
 LDFLAGS_MODULE  = --strip-debug
-CFLAGS_KERNEL   = -mtune=cortex-a7 -marm -ffast-math -mfpu=neon-vfpv4 -mvectorize-with-neon-quad
-AFLAGS_KERNEL   = -mtune=cortex-a7 -marm -ffast-math -mfpu=neon-vfpv4 -mvectorize-with-neon-quad
-CFLAGS_GCOV     = -fprofile-arcs -ftest-coverage
+CFLAGS_KERNEL	=
+AFLAGS_KERNEL	=
+CFLAGS_GCOV	= -fprofile-arcs -ftest-coverage
 
 
 # Use LINUXINCLUDE when you must reference the include/ directory.
@@ -373,24 +373,11 @@ LINUXINCLUDE    := -I$(srctree)/arch/$(hdr-arch)/include \
 
 KBUILD_CPPFLAGS := -D__KERNEL__
 
-#
-# AK LINARO OPT (thanks ak!)
-#
-CFLAGS_A7 = -mtune=cortex-a7 -marm -mfpu=neon-vfpv4 \
-             -fgcse-sm -fgcse-after-reload -fgcse-las -fsched-spec-load \
-             -ffast-math -munaligned-access -fsingle-precision-constant -fipa-pta \
-             -falign-functions=16 -falign-loops=16
-CFLAGS_MODULO = -fmodulo-sched -fmodulo-sched-allow-regmoves
-CFLAGS_NOERRORS = -Werror-implicit-function-declaration -Wno-format-security -Wno-format-security \
-                  -Wno-maybe-uninitialized -Wno-sizeof-pointer-memaccess
-KERNEL_MODS     = $(CFLAGS_A7) $(CFLAGS_MODULO) $(CFLAGS_NOERRORS)
-
 KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
-                   -fno-strict-aliasing -fno-common \
-                   -fno-delete-null-pointer-checks \
-                   -ftree-vectorize \
-                   $(KERNEL_MODS)
-
+		   -fno-strict-aliasing -fno-common \
+		   -Werror-implicit-function-declaration \
+		   -Wno-format-security -Wno-sizeof-pointer-memaccess \
+		   -fno-delete-null-pointer-checks
 KBUILD_AFLAGS_KERNEL :=
 KBUILD_CFLAGS_KERNEL :=
 KBUILD_AFLAGS   := -D__ASSEMBLY__
@@ -1022,7 +1009,8 @@ define filechk_utsrelease.h
 	  echo '"$(KERNELRELEASE)" exceeds $(uts_len) characters' >&2;    \
 	  exit 1;                                                         \
 	fi;                                                               \
-	(echo \#define UTS_RELEASE \"$(KERNELRELEASE)\";)
+	(echo \#define UTS_RELEASE \"$(KERNELRELEASE)\";                  \
+	echo \#define SHORT_UTS_RELEASE \"$(KERNELVERSION)$(CONFIG_LOCALVERSION)\";)
 endef
 
 define filechk_version.h
