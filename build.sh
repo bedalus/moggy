@@ -2,7 +2,7 @@ echo -e "Making moto g 4g (peregrine) zImage\n"
 export PATH=$PATH:/opt/toolchain/bin/
 export ARCH=arm
 export SUBARCH=arm
-export CROSS_COMPILE=arm-linux-androideabi-
+export CROSS_COMPILE=arm-cortex_a7-linux-gnueabihf-
 
 make peregrine_defconfig
 
