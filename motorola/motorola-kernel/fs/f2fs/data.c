@@ -814,6 +814,11 @@ static int f2fs_write_data_page(struct page *page,
 write:
 	if (unlikely(sbi->por_doing))
 		goto redirty_out;
+	if (f2fs_is_drop_cache(inode))
+		goto out;
+	if (f2fs_is_volatile_file(inode) && !wbc->for_reclaim &&
+			available_free_memory(sbi, BASE_CHECK))
+		goto redirty_out;
 
 	/* Dentry blocks are controlled by checkpoint */
 	if (S_ISDIR(inode->i_mode)) {
@@ -936,6 +941,17 @@ static int f2fs_write_begin(struct file *file, struct address_space *mapping,
 	trace_f2fs_write_begin(inode, pos, len, flags);
 
 	f2fs_balance_fs(sbi);
+
+	/*
+	 * We should check this at this moment to avoid deadlock on inode page
+	 * and #0 page. The locking rule for inline_data conversion should be:
+	 * lock_page(page #0) -> lock_page(inode_page)
+	 */
+	if (index != 0) {
+		err = f2fs_convert_inline_inode(inode);
+		if (err)
+			goto fail;
+	}
 repeat:
 	page = grab_cache_page_write_begin(mapping, index, flags);
 	if (!page) {
@@ -949,8 +965,10 @@ repeat:
 
 	/* check inline_data */
 	ipage = get_node_page(sbi, inode->i_ino);
-	if (IS_ERR(ipage))
+	if (IS_ERR(ipage)) {
+		err = PTR_ERR(ipage);
 		goto unlock_fail;
+	}
 
 	set_new_dnode(&dn, inode, ipage, ipage, 0);
 
@@ -960,25 +978,14 @@ repeat:
 			set_inode_flag(F2FS_I(inode), FI_DATA_EXIST);
 			sync_inode_page(&dn);
 			goto put_next;
-		} else if (page->index == 0) {
-			err = f2fs_convert_inline_page(&dn, page);
-			if (err)
-				goto unlock_fail;
-		} else {
-			struct page *p = grab_cache_page(inode->i_mapping, 0);
-			if (!p) {
-				err = -ENOMEM;
-				goto unlock_fail;
-			}
-			err = f2fs_convert_inline_page(&dn, p);
-			f2fs_put_page(p, 1);
-			if (err)
-				goto unlock_fail;
 		}
+		err = f2fs_convert_inline_page(&dn, page);
+		if (err)
+			goto put_fail;
 	}
 	err = f2fs_reserve_block(&dn, index);
 	if (err)
-		goto unlock_fail;
+		goto put_fail;
 put_next:
 	f2fs_put_dnode(&dn);
 	f2fs_unlock_op(sbi);
@@ -1021,6 +1028,8 @@ out:
 	clear_cold_data(page);
 	return 0;
 
+put_fail:
+	f2fs_put_dnode(&dn);
 unlock_fail:
 	f2fs_unlock_op(sbi);
 	f2fs_put_page(page, 1);
@@ -1108,7 +1117,7 @@ static void f2fs_invalidate_data_page(struct page *page, unsigned long offset)
 	if (offset % PAGE_CACHE_SIZE)
 		return;
 
-	if (f2fs_is_atomic_file(inode) || f2fs_is_volatile_file(inode))
+	if (f2fs_is_atomic_file(inode))
 		invalidate_inmem_page(inode, page);
 
 	if (PageDirty(page))
@@ -1131,7 +1140,7 @@ static int f2fs_set_data_page_dirty(struct page *page)
 
 	SetPageUptodate(page);
 
-	if (f2fs_is_atomic_file(inode) || f2fs_is_volatile_file(inode)) {
+	if (f2fs_is_atomic_file(inode)) {
 		register_inmem_page(inode, page);
 		return 1;
 	}
